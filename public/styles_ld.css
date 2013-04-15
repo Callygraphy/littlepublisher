@@ -1,0 +1,9 @@
+body {
+      width: 384px;
+      padding: 0px;
+      margin: 0px;
+      font-family:verdana, sans-serif;
+    }
+h1 {
+      word-wrap: break-word;
+    }

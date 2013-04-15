@@ -3,11 +3,17 @@ require 'sinatra'
 require 'data_mapper' # metagem, requires common plugins too.
 require 'slim'
 
+set :username,'littlepublisher'
+set :token,'shakenN0tstirr3d'
+set :password,'littlepublisher'
+
+helpers do
+  def admin? ; request.cookies[settings.username] == settings.token ; end
+  def protected! ; halt [ 401, 'Not Authorized' ] unless admin? ; end
+end
 
 
 DataMapper::setup(:default, "sqlite3://#{Dir.pwd}/littledraw2.db")
-
-
 
 class Post
     include DataMapper::Resource
@@ -22,39 +28,58 @@ DataMapper.finalize
 
 Post.auto_upgrade!
 
-
 get '/sample/' do
-	@posts = Post.get(1)
+    @posts = Post.get(1)
     date = Time.now
     @today = date.strftime("%F")
-    etag Digest::MD5.hexdigest("sample"+@posts.id.to_s)
+    #etag Digest::MD5.hexdigest("sample"+@posts.id.to_s)
     
     if @posts == nil
         redirect to('/oops/')
     end
-    
-    
-    slim :edition
+
+    slim :edition, :layout => false do
+        slim :lp_layout
+    end
 end
 
 get '/edition/' do
-	
+    
     date = Time.now
     @saturday = date.wday
     return unless @saturday == 6
     @today = date.strftime("%F")
-	@posts = Post.first(:pubdate => @today)
+    @posts = Post.first(:pubdate => @today)
     etag Digest::MD5.hexdigest("ld"+@today)
     
     if @posts == nil
         redirect to('/oops/')
     end
-    slim :edition
+    slim :edition, :layout => false do
+        slim :lp_layout
+    end
+
 end
 
+get '/admin/' do
+    slim :admin
+end
+
+post '/login' do
+    if params['username']==settings.username&&params['password']==settings.password
+        response.set_cookie(settings.username,settings.token)
+        redirect '/upload/'
+        else
+        "Username or Password incorrect"
+    end
+end
+
+get('/logout'){ response.set_cookie(settings.username, false) ; redirect '/' }
+
+
 get '/upload/' do
+    protected!
     @posts = Post.all
-    
     slim :uploader
 end
 
@@ -68,17 +93,10 @@ post '/upload/' do
     redirect to('/upload/')
 end
 
-get '/oops/' do
-    "ooops!"
-end
-
-
 get '/preview/:idnumber' do
-    
+    protected!
     @posts = Post.get("#{params[:idnumber]}")
-    
-    slim :preview
-    
+    slim :preview    
 end
 
 delete '/preview/:idnumber' do
@@ -92,6 +110,9 @@ post '/preview/:idnumber' do
 end
 
 
+get '/oops/' do    
+    "ooops!"
+end
 
 
 __END__
@@ -99,78 +120,103 @@ __END__
 @@layout
 doctype html
 html
-head
-meta charset="utf-8"
-title littledraw
-link rel="stylesheet" media="screen, projection" href="http://littledraw.co.uk/ld_styles.css"
+    head
+        meta charset="utf-8"
+        title littlepublisher
+        link rel="stylesheet" media="screen, projection" href="/styles.css"
 
-body
-== yield
+    body
+        == yield
 
+@@lp_layout
+doctype html
+html
+    head
+        meta charset="utf-8"
+        title little publisher
+        link rel="stylesheet" media="screen, projection" href="http://littledraw.co.uk/ld_styles.css"
+
+    body
+        == yield
 
 @@edition
-img src="http://littledraw.co.uk/images/logo.jpg"
-img src="http://littledraw.co.uk/images/cross.png"
-h1 = @posts.caption
-img src="http://littledraw.co.uk/images/cross.png"
-img src="http://littledraw.co.uk/uploads/#{@posts.url}"
-img src="http://littledraw.co.uk/images/cross.png"
-div id="footer"
+doctype html
+html
+    head
+        meta charset="utf-8"
+        title little publisher
+        link rel="stylesheet" media="screen, projection" href="http://littledraw.co.uk/ld_styles.css"
+
+    body
+        img src="http://littledraw.co.uk/images/logo.jpg"
+        img src="http://littledraw.co.uk/images/cross.png"
+        h1 = @posts.caption
+        img src="http://littledraw.co.uk/images/cross.png"
+        img src="http://littledraw.co.uk/uploads/#{@posts.url}"
+        img src="http://littledraw.co.uk/images/cross.png"
+        div id="footer"
 
 
 @@uploader
-
-h2 existing editions
-ul.editions
-- @posts.each do |post|
-    li.post #{post.caption} on #{post.pubdate}
-    a href="/preview/#{post.id}" Preview
-    br
-    
-h1 Upload a file
-form method="post" enctype='multipart/form-data'
-    p select file
-    input type='file' name='myfile'
-    br
-    p caption
-    textarea name='caption'
-    br
-    p date to be published
-    input type='date' name='pubdate'
-    br
-    input type='submit' value='Upload!'
+div id="editions"
+    h2 existing editions
+    ul.editions
+    - @posts.each do |post|
+        li.post #{post.caption} on #{post.pubdate}
+        a href="/preview/#{post.id}" Preview
+div id="upload"   
+    h1 Upload a file
+    form method="post" enctype='multipart/form-data'
+      p select file
+      input type='file' name='myfile'
+      br
+      p caption
+      textarea name='caption'
+      br
+      p date to be published
+      input type='date' name='pubdate'
+      br
+      input type='submit' value='Upload!'
     
     
 @@preview
-    
-    
-img src="http://littledraw.co.uk/images/logo.jpg"
-img src="http://littledraw.co.uk/images/cross.png"
-h1 = @posts.caption
-img src="http://littledraw.co.uk/images/cross.png"
-img src="http://littledraw.co.uk/uploads/#{@posts.url}"
-img src="http://littledraw.co.uk/images/cross.png"
-div id="footer"
-    
-div id="edit"
-    
-    h1 update
-    form.post method="post" enctype='multipart/form-data'
-     p select file
-     input type='file' name='myfile' value='#{@posts.url}'
-     br
-     p caption
-     textarea name='caption' = @posts.caption
-     #input type='text' name='caption' value='#{@posts.caption}'
-     br
-     p date to be published
-     input type='date' name='pubdate' value='#{@posts.pubdate}'
-     br
-     input type='submit' value='Update'
-    
-    br
-    
-    form.delete method="POST"
-     input type="hidden" name="_method" value="DELETE"
-     input type="submit" value="Delete"  title="Delete"
+div class="admin"
+    div id="preview"    
+        img src="http://littledraw.co.uk/images/logo.jpg"
+        img src="http://littledraw.co.uk/images/cross.png"
+        h1 = @posts.caption
+        img src="http://littledraw.co.uk/images/cross.png"
+        img src="/uploads/#{@posts.url}"
+        img src="http://littledraw.co.uk/images/cross.png"
+        div id="footer"
+
+    div id="edit"
+        h1 update
+        form.post method="post" enctype='multipart/form-data'
+            p select file
+            input type='file' name='myfile' value='#{@posts.url}'
+            br
+            p caption
+            textarea name='caption' = @posts.caption
+        #input type='text' name='caption' value='#{@posts.caption}'
+            br
+            p date to be published
+            input type='date' name='pubdate' value='#{@posts.pubdate}'
+            br
+            input type='submit' value='Update'
+        
+        br
+        
+        form.delete method="POST"
+        input type="hidden" name="_method" value="DELETE"
+        input type="submit" value="Delete"  title="Delete"
+   
+@@admin
+div class="admin"
+form.post action="/login" method="post"
+    p Username:
+    input type='text' name='username'
+    p Password:
+    input type='password' name='password'
+    input type='submit' value='login'    
     

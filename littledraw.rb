@@ -2,9 +2,18 @@ require 'rubygems'
 require 'sinatra'
 require 'data_mapper' # metagem, requires common plugins too.
 require 'slim'
+require 'rufus/scheduler'
+require 'pony'
+require 'chronic'
+
+#scheduler for email notifications
+
+scheduler = Rufus::Scheduler.start_new
+
+# Set password here
 
 set :username,'littlepublisher'
-set :token,'shakenN0tstirr3d'
+set :token,'6ff2b8421a6f24ae8cdc13cbbfd7f3d2'
 set :password,'littlepublisher'
 
 helpers do
@@ -12,6 +21,8 @@ helpers do
   def protected! ; halt [ 401, 'Not Authorized' ] unless admin? ; end
 end
 
+
+#database stuff
 
 DataMapper::setup(:default, "sqlite3://#{Dir.pwd}/littledraw2.db")
 
@@ -28,11 +39,35 @@ DataMapper.finalize
 
 Post.auto_upgrade!
 
+
+# email notifications
+
+
+#scheduler.cron '0 22 * * sun#1,sun#2,sun#3,sun#4' do
+#scheduler.every '10m' do
+#  date = Time.now
+#  puts 'email sent'
+#  Pony.mail(:to => 'cally.gatehouse@gmail.com', :from => 'noreply@littledraw.co.uk',
+#            :subject => 'littledraw content for this week',
+#            :html_body => '<h1>Hello there!</h1>', :body => "In case you can't read html, Hello there.")
+# end
+#end
+
+
+
+get '/email/' do
+    thisSat = Chronic.parse('this saturday')
+    nextSat = Chronic.parse('saturday next week')
+    @weekOne = thisSat.strftime("%F")
+    @posts = Post.first(:pubdate => @weekOne)
+end
+
+# Little printer stuff
+
 get '/sample/' do
     @posts = Post.get(1)
     date = Time.now
     @today = date.strftime("%F")
-    #etag Digest::MD5.hexdigest("sample"+@posts.id.to_s)
     
     if @posts == nil
         redirect to('/oops/')
@@ -47,10 +82,10 @@ get '/edition/' do
     
     date = Time.now
     @saturday = date.wday
-    return unless @saturday == 6
+    return unless @saturday == 6 #I know this a roundabout way of doing this but date.saturday? doesn't work on dreamhost
     @today = date.strftime("%F")
     @posts = Post.first(:pubdate => @today)
-    etag Digest::MD5.hexdigest("ld"+@today)
+    # etag Digest::MD5.hexdigest("ld"+@today) #comment out etags when in development, else your page won't refresh
     
     if @posts == nil
         redirect to('/oops/')
@@ -60,6 +95,8 @@ get '/edition/' do
     end
 
 end
+
+#Admin section
 
 get '/admin/' do
     slim :admin
@@ -109,6 +146,7 @@ post '/preview/:idnumber' do
     redirect to('/preview/"#{params[:idnumber]}"')
 end
 
+# last resort
 
 get '/oops/' do    
     "ooops!"
@@ -158,25 +196,27 @@ html
 
 
 @@uploader
-div id="editions"
-    h2 existing editions
-    ul.editions
-    - @posts.each do |post|
-        li.post #{post.caption} on #{post.pubdate}
-        a href="/preview/#{post.id}" Preview
-div id="upload"   
-    h1 Upload a file
-    form method="post" enctype='multipart/form-data'
-      p select file
-      input type='file' name='myfile'
-      br
-      p caption
-      textarea name='caption'
-      br
-      p date to be published
-      input type='date' name='pubdate'
-      br
-      input type='submit' value='Upload!'
+div class="row"    
+    div class="span6 offset1"   
+        h1 Upload a file
+        form method="post" enctype='multipart/form-data'
+          p select file
+          input type='file' name='myfile'
+          br
+          p caption
+          textarea name='caption'
+          br
+          p date to be published
+          input type='date' name='pubdate'
+          br
+          input type='submit' value='Upload!'
+    div class="span4"
+        h2 existing editions
+        ul.editions
+        - @posts.each do |post|
+            li.post #{post.caption} on #{post.pubdate}
+            a href="/preview/#{post.id}" Preview
+    
     
     
 @@preview

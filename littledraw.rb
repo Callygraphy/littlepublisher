@@ -24,7 +24,7 @@ end
 
 #database stuff
 
-DataMapper::setup(:default, "sqlite3://#{Dir.pwd}/littledraw2.db")
+DataMapper::setup(:default, "sqlite3://#{Dir.pwd}/littlepublisher.db")
 
 class Post
     include DataMapper::Resource

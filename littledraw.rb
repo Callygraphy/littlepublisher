@@ -39,29 +39,6 @@ DataMapper.finalize
 
 Post.auto_upgrade!
 
-
-# email notifications
-
-
-#scheduler.cron '0 22 * * sun#1,sun#2,sun#3,sun#4' do
-#scheduler.every '10m' do
-#  date = Time.now
-#  puts 'email sent'
-#  Pony.mail(:to => 'cally.gatehouse@gmail.com', :from => 'noreply@littledraw.co.uk',
-#            :subject => 'littledraw content for this week',
-#            :html_body => '<h1>Hello there!</h1>', :body => "In case you can't read html, Hello there.")
-# end
-#end
-
-
-
-get '/email/' do
-    thisSat = Chronic.parse('this saturday')
-    nextSat = Chronic.parse('saturday next week')
-    @weekOne = thisSat.strftime("%F")
-    @posts = Post.first(:pubdate => @weekOne)
-end
-
 # Little printer stuff
 
 get '/sample/' do
